@@ -1,62 +1,36 @@
-## v1 scope (MVP)
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-**Goal**
+## Getting Started
 
-Build a mobile-first web app for warehouse packers to track worked hours and for the manager to see all shifts and total hours, as a first step towards full invoice automation.
+First, run the development server:
 
-**Who will use it in v1**
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
 
-- **Packer** (employee at the fulfillment center)
-  - Tracks their shifts (clock in, break, clock out)
-  - Sees a simple dashboard and shift history
-  - Manages their basic profile (incl. emergency contact, optional billing data for future invoices)
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-- **Manager**
-  - Logs in with their own account
-  - Sees all shifts from all workers
-  - Sees total hours worked **today**
-  - Can export all shifts to CSV
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-**What v1 includes**
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-- Email/password authentication (Supabase Auth)
-- Roles:
-  - `packer` – can only see and edit their own shifts
-  - `manager` – can see all shifts
-- Mobile-first UI inspired by the Figma screens (not pixel perfect, but close enough)
-- Packer features:
-  - Dashboard with:
-    - Welcome message
-    - Today’s date
-    - Current shift status:
-      - Not clocked in → button “Clock in”
-      - Active shift → can start break, clock out
-      - On break → can end break
-    - Simple monthly cards:
-      - Total hours this month
-      - Estimated earnings this month (€13/h)
-      - Total packages this month
-  - Shift flow:
-    - Clock in → creates active shift
-    - Start break / End break (one break per shift in v1)
-    - Clock out → summary screen (total time, break, working time, earnings) + fields for packages and notes, then “Submit & clock out”
-  - Shift history:
-    - List of past shifts (default: current month)
-    - Each shift shows date, times, working hours, break, packages, earnings
-  - Profile:
-    - Required: full legal name, employee ID, emergency contact name & phone
-    - Optional: billing & bank details (for future invoice generation)
-- Manager features:
-  - “All shifts” page with:
-    - Filters: worker, date/month
-    - Columns: date, worker name, start time, end time, working hours, break duration, packages, notes, earnings
-    - Aggregate “Total hours today” at the top
-    - Button “Export CSV”
+## Learn More
 
-**Explicitly NOT in v1**
+To learn more about Next.js, take a look at the following resources:
 
-- Any invoice generation (no PDF, no invoice emails)
-- Any “manager dashboard” with productivity cards, trends, vs yesterday etc.
-- Multi-break per shift (v1 supports one break per shift)
-- Notifications or reminders
-- Automations with n8n (could be added later for invoices)
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
