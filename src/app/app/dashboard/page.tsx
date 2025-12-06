@@ -14,18 +14,21 @@ export default async function DashboardPage() {
         .single()
 
     return (
-        <div className="p-6">
-            <header className="flex justify-between items-center mb-6 border-b pb-4">
-                <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
+        <div className="max-w-md mx-auto px-4 py-6">
+            <header className="flex justify-between items-center mb-6">
+                <div>
+                    <h1 className="text-xl font-semibold text-slate-50">Dashboard</h1>
+                    <p className="text-sm text-slate-400">
+                        Welcome back, {profile?.full_name || user?.email}
+                    </p>
+                </div>
                 <LogoutButton />
             </header>
 
-            <p className="text-gray-700 mb-4">
-                Welcome back, <span className="font-semibold">{profile?.full_name || user?.email}</span>
-            </p>
-
-            <div className="p-4 bg-white rounded shadow text-sm text-gray-500">
-                Packer View (v1)
+            <div className="bg-white rounded-2xl shadow-md p-5 border border-slate-100">
+                <p className="text-slate-900 text-sm">
+                    Packer View (v1)
+                </p>
             </div>
         </div>
     )
