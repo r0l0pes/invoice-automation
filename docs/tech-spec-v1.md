@@ -37,23 +37,23 @@ Example SQL for Supabase:
 
 ```sql
 create table public.profiles (
-    id uuid primary key references auth.users(id) on delete cascade,
-    role text not null check (role in ('packer', 'manager')),
-    full_name text not null,
-    employee_id text not null,
-    emergency_contact_name text not null,
-    emergency_contact_phone text not null,
-    billing_street text,
-    billing_city text,
-    billing_postal_code text,
-    tax_id text,
-    bank_name text,
-    iban text,
-    bic text,
-    account_holder_name text,
-    hourly_rate numeric not null default 13,
-    created_at timestamptz default now(),
-    updated_at timestamptz default now()
+  id uuid primary key references auth.users(id) on delete cascade,
+  role text not null check (role in ('packer', 'manager')),
+  full_name text not null,
+  employee_id text not null,
+  emergency_contact_name text not null,
+  emergency_contact_phone text not null,
+  billing_street text,
+  billing_city text,
+  billing_postal_code text,
+  tax_id text,
+  bank_name text,
+  iban text,
+  bic text,
+  account_holder_name text,
+  hourly_rate numeric not null default 13,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 2.2. Shifts
