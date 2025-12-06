@@ -9,6 +9,11 @@ interface FormState {
     error?: string
 }
 
+interface Profile {
+    role: string | null
+    full_name: string | null
+}
+
 export async function login(prevState: FormState | null, formData: FormData) {
     const supabase = await createClient()
 
@@ -35,29 +40,34 @@ export async function login(prevState: FormState | null, formData: FormData) {
     console.log('Login successful for user:', data.user.id)
 
     // Fetch profile to check role
-    // We use the supabase instance which should now have the session in memory
-    const { data: profile, error: profileError } = await supabase
+    const { data: rawProfile, error: profileError } = await supabase
         .from('profiles')
         .select('role, full_name')
         .eq('id', data.user.id)
         .single()
 
+    const profile = rawProfile as Profile | null
+
     if (profileError) {
         console.error('Error fetching profile:', profileError)
-        // Fallback to dashboard if profile fetch fails, or handle error
-        // For now, we'll log it and default to dashboard, but maybe we should error?
-        // Let's assume default packer view if profile fails (safe fail)
+        return { error: 'Failed to retrieve user profile. Please contact support.' }
+    }
+
+    if (!profile) {
+        console.error('Profile not found for user:', data.user.id)
+        return { error: 'Profile not found.' }
     }
 
     console.log('Fetched profile:', profile)
 
     revalidatePath('/', 'layout')
 
-    if (profile?.role === 'manager') {
+    // Strict redirect logic
+    if (profile.role === 'manager') {
         console.log('Redirecting to /manager/shifts')
         redirect('/manager/shifts')
+    } else {
+        console.log('Redirecting to /app/dashboard')
+        redirect('/app/dashboard')
     }
-
-    console.log('Redirecting to /app/dashboard')
-    redirect('/app/dashboard')
 }
