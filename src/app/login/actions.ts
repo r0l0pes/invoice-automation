@@ -37,37 +37,38 @@ export async function login(prevState: FormState | null, formData: FormData) {
         return { error: 'Authentication failed' }
     }
 
-    console.log('Login successful for user:', data.user.id)
+    const userId = data.user.id
+    console.log('Login successful for user:', userId)
 
     // Fetch profile to check role
+    // Using maybeSingle() to avoid error on 0 rows, though strict error handling will catch it.
     const { data: rawProfile, error: profileError } = await supabase
         .from('profiles')
         .select('role, full_name')
-        .eq('id', data.user.id)
-        .single()
+        .eq('id', userId)
+        .maybeSingle()
 
     const profile = rawProfile as Profile | null
 
     if (profileError) {
-        console.error('Error fetching profile:', profileError)
+        console.error('profileError', profileError)
         return { error: 'Failed to retrieve user profile. Please contact support.' }
     }
 
     if (!profile) {
-        console.error('Profile not found for user:', data.user.id)
-        return { error: 'Profile not found.' }
+        console.error('Profile not found for user:', userId)
+        return { error: 'Failed to retrieve user profile. Please contact support.' }
     }
 
-    console.log('Fetched profile:', profile)
+    console.log('Fetched profile role:', profile.role)
+    console.log('Redirecting based on role...')
 
     revalidatePath('/', 'layout')
 
     // Strict redirect logic
     if (profile.role === 'manager') {
-        console.log('Redirecting to /manager/shifts')
         redirect('/manager/shifts')
     } else {
-        console.log('Redirecting to /app/dashboard')
         redirect('/app/dashboard')
     }
 }
