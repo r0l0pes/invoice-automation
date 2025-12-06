@@ -1,5 +1,6 @@
 
 import { createClient } from '@/utils/supabase/server'
+import LogoutButton from '@/components/LogoutButton'
 
 export default async function DashboardPage() {
     const supabase = await createClient()
@@ -14,11 +15,16 @@ export default async function DashboardPage() {
 
     return (
         <div className="p-6">
-            <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
-            <p className="text-gray-700">
-                Welcome back, {profile?.full_name || user?.email}
+            <header className="flex justify-between items-center mb-6 border-b pb-4">
+                <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
+                <LogoutButton />
+            </header>
+
+            <p className="text-gray-700 mb-4">
+                Welcome back, <span className="font-semibold">{profile?.full_name || user?.email}</span>
             </p>
-            <div className="mt-4 p-4 bg-white rounded shadow text-sm text-gray-500">
+
+            <div className="p-4 bg-white rounded shadow text-sm text-gray-500">
                 Packer View (v1)
             </div>
         </div>
