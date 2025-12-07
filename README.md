@@ -1,10 +1,10 @@
-> **High-level product goal**
-> The mid-term goal of this project is to **automate invoice generation** for warehouse operations:
->
-> * Packers clock in/out and track breaks on `/app/dashboard`.
-> * Managers see daily/hourly summaries on `/manager/shifts`.
-> * Each shift row already stores `raw_hours`, `effective_hours`, and (with breaks) `break_duration_minutes`.
->   In a future phase, this shift data will be grouped by packer, client, and time period to produce invoice line items (e.g. hours worked × rate), exported as CSV/PDF or pushed into an invoicing system.
+### High-level product goal
+ The mid-term goal of this project is to **automate invoice generation** for warehouse operations:
+
+ * Packers clock in/out and track breaks on `/app/dashboard`.
+ * Managers see daily/hourly summaries on `/manager/shifts`.
+ * Each shift row already stores `raw_hours`, `effective_hours`, and (with breaks) `break_duration_minutes`.
+ * In a future phase, this shift data will be grouped by packer, client, and time period to produce invoice line items (e.g. hours worked × rate), exported as CSV/PDF or pushed into an invoicing system.
 
 ### Project context
 
