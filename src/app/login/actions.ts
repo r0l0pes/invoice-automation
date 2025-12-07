@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
+import { getAdminSupabaseClient } from '@/utils/supabaseAdmin'
 
 
 interface FormState {
@@ -42,7 +43,10 @@ export async function login(prevState: FormState | null, formData: FormData) {
 
     // Fetch profile to check role
     // Using maybeSingle() to avoid error on 0 rows, though strict error handling will catch it.
-    const { data: rawProfile, error: profileError } = await supabase
+    const supabaseAdmin = getAdminSupabaseClient()
+
+    // Usage of maybeSingle() to avoid error on 0 rows is good, strict error handling follows.
+    const { data: rawProfile, error: profileError } = await supabaseAdmin
         .from('profiles')
         .select('role, full_name')
         .eq('id', userId)
