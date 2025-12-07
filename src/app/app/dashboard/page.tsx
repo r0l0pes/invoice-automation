@@ -1,5 +1,6 @@
 
 import { createClient } from '@/utils/supabase/server'
+import DashboardFeature from './dashboard-feature'
 import LogoutButton from '@/components/LogoutButton'
 
 export default async function DashboardPage() {
@@ -7,29 +8,47 @@ export default async function DashboardPage() {
 
     const { data: { user } } = await supabase.auth.getUser()
 
+    if (!user) {
+        // Should be handled by middleware, but safe check
+        return <div>Please log in</div>
+    }
+
+    // 1. Fetch user profile for name
     const { data: profile } = await supabase
         .from('profiles')
-        .select('full_name')
-        .eq('id', user?.id)
+        .select('full_name, role')
+        .eq('id', user.id)
         .single()
 
-    return (
-        <div className="max-w-md mx-auto px-4 py-6">
-            <header className="flex justify-between items-center mb-6">
-                <div>
-                    <h1 className="text-xl font-semibold text-slate-50">Dashboard</h1>
-                    <p className="text-sm text-slate-400">
-                        Welcome back, {profile?.full_name || user?.email}
-                    </p>
-                </div>
-                <LogoutButton />
-            </header>
+    // 2. Fetch active shift
+    const { data: activeShift } = await supabase
+        .from('shifts')
+        .select('*')
+        .eq('user_id', user.id)
+        .is('end_time', null)
+        .maybeSingle()
 
-            <div className="bg-white rounded-2xl shadow-md p-5 border border-slate-100">
-                <p className="text-slate-900 text-sm">
-                    Packer View (v1)
-                </p>
+    // 3. Fetch recent history (limit 10)
+    const { data: history } = await supabase
+        .from('shifts')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('start_time', { ascending: false })
+        .limit(10)
+
+    return (
+        <>
+            <div className="absolute top-6 right-6 z-10">
+                <LogoutButton />
             </div>
-        </div>
+            {/* We pass data to the client component */}
+            <DashboardFeature
+                userProfile={profile}
+                userEmail={user.email}
+                activeShift={activeShift}
+                history={history || []}
+            />
+        </>
+
     )
 }
