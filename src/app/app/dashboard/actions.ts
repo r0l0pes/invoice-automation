@@ -10,9 +10,11 @@ export type ActionState = {
 }
 
 export async function clockIn(
-    prevState: ActionState,
-    formData: FormData
+    _prevState: ActionState,
+    _formData: FormData
 ): Promise<ActionState> {
+    void _prevState
+    void _formData
     console.log('[clockIn] Action started')
     const supabase = await createClient()
 
@@ -28,11 +30,12 @@ export async function clockIn(
     }
     console.log('[clockIn] User found:', user.id)
 
-    // Check if active shift exists
+    // Check if active or on_break shift exists
     const { data: activeShift, error: fetchError } = await supabase
         .from('shifts')
-        .select('id, start_time, end_time, status')
+        .select('id, status')
         .eq('user_id', user.id)
+        .in('status', ['active', 'on_break'])
         .is('end_time', null)
         .maybeSingle()
 
@@ -45,7 +48,7 @@ export async function clockIn(
     }
 
     if (activeShift) {
-        console.warn('[clockIn] User already active:', activeShift)
+        console.warn('[clockIn] User already active or on break:', activeShift)
         return { error: 'You already have an active shift.', success: false }
     }
 
@@ -75,9 +78,11 @@ export async function clockIn(
 }
 
 export async function startBreak(
-    prevState: ActionState,
-    formData: FormData
+    _prevState: ActionState,
+    _formData: FormData
 ): Promise<ActionState> {
+    void _prevState
+    void _formData
     console.log('[startBreak] Action started')
     const supabase = await createClient()
 
@@ -89,19 +94,36 @@ export async function startBreak(
         return { error: 'Not authenticated', success: false }
     }
 
-    // Check for active shift that is NOT on break
+    // Check for active shift with status='active' (implies not on break)
+    // We strictly require status to be 'active' to start a break.
     const { data: shift, error: fetchError } = await supabase
         .from('shifts')
-        .select('id, start_time, status')
+        .select('id, status, break_start')
         .eq('user_id', user.id)
+        .eq('status', 'active')
         .is('end_time', null)
-        .is('break_start', null)
-        .single() // Should strictly have one active shift not on break
+        .single()
 
     if (fetchError || !shift) {
         console.error('[startBreak] No suitable active shift found:', fetchError)
-        return { error: 'No active shift found or already on break.', success: false }
+        // Check if maybe they are already on break?
+        const { data: breakShift } = await supabase
+            .from('shifts')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('status', 'on_break')
+            .single()
+
+        if (breakShift) {
+            return { error: 'You are already on a break.', success: false }
+        }
+
+        return { error: 'No active shift found to start break.', success: false }
     }
+
+    // Double check just in case logic above missed something (e.g. race condition or inconsistent data)
+    // But adhering to requirements: "If there is already an open break for that shift: Return error"
+    // The query status='active' implicitly filters out 'on_break'.
 
     const now = new Date().toISOString()
 
@@ -127,9 +149,11 @@ export async function startBreak(
 }
 
 export async function endBreak(
-    prevState: ActionState,
-    formData: FormData
+    _prevState: ActionState,
+    _formData: FormData
 ): Promise<ActionState> {
+    void _prevState
+    void _formData
     console.log('[endBreak] Action started')
     const supabase = await createClient()
 
@@ -144,29 +168,47 @@ export async function endBreak(
     // Check for shift currently ON BREAK
     const { data: shift, error: fetchError } = await supabase
         .from('shifts')
-        .select('id, break_start')
+        .select('id, break_start, break_duration_minutes, user_id, status')
         .eq('user_id', user.id)
+        .eq('status', 'on_break')
         .is('end_time', null)
-        .not('break_start', 'is', null)
-        .is('break_end', null)
         .single()
 
     if (fetchError || !shift) {
         console.error('[endBreak] No active break found:', fetchError)
-        return { error: 'No active break found.', success: false }
+        return { error: 'No active break to end.', success: false }
+    }
+
+    // Safety check: break_start should be present if status is on_break
+    if (!shift.break_start) {
+        console.error('[endBreak] Break start time not found for shift:', shift.id)
+        return { error: 'Cannot end break: break start time not found.', success: false }
     }
 
     const now = new Date()
-    const nowIso = now.toISOString()
     const breakStart = new Date(shift.break_start)
     const diffMs = now.getTime() - breakStart.getTime()
-    const minutes = Math.floor(diffMs / 60000)
+
+    // Integer number of minutes
+    const breakMinutes = Math.round(diffMs / (1000 * 60))
+
+    const previous = shift.break_duration_minutes || 0
+    const totalBreakMinutes = previous + breakMinutes // Integer accumulation
+
+    console.log('[endBreak] Calculation:', {
+        breakStart: shift.break_start,
+        now: now.toISOString(),
+        diffMs,
+        breakMinutes,
+        previous,
+        totalBreakMinutes
+    })
 
     const { error: updateError } = await supabase
         .from('shifts')
         .update({
-            break_end: nowIso,
-            break_duration_minutes: minutes,
+            break_end: now.toISOString(),
+            break_duration_minutes: totalBreakMinutes, // Integer
             status: 'active',
         })
         .eq('id', shift.id)
@@ -186,9 +228,11 @@ export async function endBreak(
 
 export async function clockOut(
     shiftId: number,
-    prevState: ActionState,
-    formData: FormData
+    _prevState: ActionState,
+    _formData: FormData
 ): Promise<ActionState> {
+    void _prevState
+    void _formData
     console.log('[clockOut] Action started for shift:', shiftId)
     const supabase = await createClient()
     const {
@@ -200,65 +244,86 @@ export async function clockOut(
     }
 
     // Fetch the shift to get/verify state
+    // We strictly need start_time and break_duration_minutes
+    // We also need break_start/status to handle the "clock out while on break" case
     const { data: shift, error: fetchError } = await supabase
         .from('shifts')
-        .select('start_time, break_start, break_end, break_duration_minutes')
+        .select('id, start_time, status, break_start, break_duration_minutes')
         .eq('id', shiftId)
         .eq('user_id', user.id)
         .single()
 
     if (fetchError || !shift) {
         console.error('[clockOut] Shift not found or access denied:', fetchError)
-        return { error: 'Shift not found', success: false }
+        return { error: 'Shift not found or already ended.', success: false }
+    }
+
+    if (['completed', 'cancelled'].includes(shift.status)) {
+        return { error: 'Shift is already ended.', success: false }
     }
 
     const now = new Date()
     const endTimeIso = now.toISOString()
 
-    // 1. Handle open break if exists
-    let breakDurationMinutes = shift.break_duration_minutes || 0
-    let breakEndIso = shift.break_end
+    // 1. Handle break calculation (Always INTEGER for minutes)
+    let totalBreakMinutes = shift.break_duration_minutes || 0
+    let breakEndIso: string | undefined
 
-    if (shift.break_start && !shift.break_end) {
-        const breakStart = new Date(shift.break_start)
-        const breakDiffMs = now.getTime() - breakStart.getTime()
-        const currentBreakMinutes = Math.floor(breakDiffMs / 60000)
-
-        breakDurationMinutes = currentBreakMinutes // Assuming single break, overwrite or add if supporting accumulated (we support 1)
-        breakEndIso = endTimeIso // End break when ending shift
+    // If status is on_break, we MUST calculate the finalizing segment
+    if (shift.status === 'on_break') {
+        if (!shift.break_start) {
+            console.error('[clockOut] Shift is on_break but missing break_start')
+            // Fallback: don't add extra minutes if data is corrupted, to avoid NaN
+        } else {
+            const breakStart = new Date(shift.break_start)
+            const breakDiffMs = Math.max(0, now.getTime() - breakStart.getTime())
+            const segmentMinutes = Math.round(breakDiffMs / (1000 * 60)) // Integer
+            totalBreakMinutes += segmentMinutes
+            breakEndIso = endTimeIso
+        }
     }
 
     // 2. Calculate Hours
     const startTime = new Date(shift.start_time)
-    const diffMs = now.getTime() - startTime.getTime()
-    let rawHours = diffMs / (1000 * 60 * 60)
+    const diffMs = Math.max(0, now.getTime() - startTime.getTime())
 
-    // Calculate effective hours (raw - break)
-    // breakDurationMinutes is in minutes, convert to hours
-    const breakHours = breakDurationMinutes / 60
-    let effectiveHours = rawHours - breakHours
+    // raw_hours (Numeric, 2 decimals)
+    const rawHours = diffMs / (1000 * 60 * 60)
+
+    // effective_hours (Numeric, 2 decimals)
+    // totalBreakMinutes is Integer
+    const totalBreakHours = totalBreakMinutes / 60
+    let effectiveHours = rawHours - totalBreakHours
 
     // Clamp to non-negative
     if (effectiveHours < 0) effectiveHours = 0
 
-    // Round to 2 decimal places
-    rawHours = Math.round(rawHours * 100) / 100
-    effectiveHours = Math.round(effectiveHours * 100) / 100
+    // Round to 2 decimal places for storage
+    const roundedRawHours = Math.round(rawHours * 100) / 100
+    const roundedEffectiveHours = Math.round(effectiveHours * 100) / 100
 
-    console.log('[clockOut] Updating shift:', { rawHours, effectiveHours, breakDurationMinutes })
+    console.log('[clockOut] Calculation:', {
+        shiftId,
+        userId: user.id,
+        rawHours: roundedRawHours,
+        effectiveHours: roundedEffectiveHours,
+        totalBreakMinutes, // Should be int
+        status: shift.status
+    })
 
     // Prepare update payload
-    // We use a specific type or just let TypeScript infer from the object literal which is compatible with Supabase types
     const updatePayload = {
         end_time: endTimeIso,
         status: 'completed',
-        raw_hours: rawHours,
-        effective_hours: effectiveHours,
-        break_duration_minutes: breakDurationMinutes,
-        // Only include break_end if we computed a new one (or it exists). 
-        // If it was null and we didn't close a break, it stays null (we don't need to send undefined).
-        // But if we have a value we want to ensure it is set.
-        ...(breakEndIso ? { break_end: breakEndIso } : {})
+        raw_hours: roundedRawHours,
+        effective_hours: roundedEffectiveHours,
+        break_duration_minutes: undefined as number | undefined,
+        break_end: undefined as string | undefined
+    }
+
+    if (shift.status === 'on_break') {
+        updatePayload.break_duration_minutes = totalBreakMinutes
+        updatePayload.break_end = breakEndIso
     }
 
     // Update shift
