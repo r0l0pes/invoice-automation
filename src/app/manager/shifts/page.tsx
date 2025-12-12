@@ -17,7 +17,14 @@ interface Shift {
     break_duration_minutes: number | null
 }
 
-export default async function ManagerShiftsPage() {
+type PageProps = {
+    searchParams?: {
+        start?: string
+        end?: string
+    }
+}
+
+export default async function ManagerShiftsPage({ searchParams }: PageProps) {
     // 1. Auth & Role Check (Standard Client)
     const supabase = await createClient()
 
@@ -41,18 +48,30 @@ export default async function ManagerShiftsPage() {
     }
 
     // 2. Fetch Data (Admin Client)
-    // Use service role to bypass RLS for fetching other users' shifts and names
     const adminSupabase = getAdminSupabaseClient()
-    const today = new Date().toISOString().slice(0, 10)
 
-    // Step 2a: Fetch Shifts
+    // Date handling
+    const today = new Date().toISOString().slice(0, 10)
+    let startDate = searchParams?.start || today
+    let endDate = searchParams?.end || today
+
+    // Swap if start > end
+    if (startDate > endDate) {
+        const temp = startDate
+        startDate = endDate
+        endDate = temp
+    }
+
+    // Step 2a: Fetch Shifts based on selected date
+    // We filter by 'date' column which stores YYYY-MM-DD
     const { data: shifts, error: shiftsError } = await adminSupabase
         .from('shifts')
         .select(`
             id, user_id, date, start_time, end_time, status, 
             raw_hours, effective_hours, break_start, break_end, break_duration_minutes
         `)
-        .eq('date', today)
+        .gte('date', startDate)
+        .lte('date', endDate)
         .order('start_time', { ascending: true })
 
     if (shiftsError) {
@@ -103,18 +122,56 @@ export default async function ManagerShiftsPage() {
         return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
 
+    const formatDuration = (hours: number | null | undefined): string => {
+        if (hours === null || hours === undefined) return ''
+
+        if (hours < 1) {
+            const minutes = Math.round(hours * 60)
+            return `${minutes} min`
+        }
+
+        // >= 1 hour
+        const rounded = Math.round(hours * 100) / 100
+        return `${rounded}h`
+    }
+
     return (
-        <div className="max-w-md mx-auto px-4 py-6 text-slate-900">
-            <header className="flex justify-between items-center mb-6">
+        <div className="max-w-xl mx-auto px-4 py-8 text-slate-900">
+            <header className="flex flex-wrap justify-between items-center mb-6 gap-2">
                 <div>
                     <h1 className="text-xl font-semibold text-slate-50">Manager shifts</h1>
-                    <p className="text-sm text-slate-400">Today’s overview</p>
+                    <div className="flex items-center gap-2 mt-1">
+                        <span className="text-sm text-slate-400">Overview from</span>
+                        <form className="flex items-center gap-2">
+                            <input
+                                type="date"
+                                name="start"
+                                defaultValue={startDate}
+                                className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-slate-100 text-xs sm:text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                            />
+                            <span className="text-sm text-slate-400">to</span>
+                            <input
+                                type="date"
+                                name="end"
+                                defaultValue={endDate}
+                                className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-slate-100 text-xs sm:text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                            />
+                            <button
+                                type="submit"
+                                className="rounded-md bg-blue-600 hover:bg-blue-700 px-3 py-1 text-xs sm:text-sm text-white font-medium transition-colors"
+                            >
+                                Go
+                            </button>
+                        </form>
+                    </div>
                 </div>
-                <LogoutButton />
+                <div className="shrink-0">
+                    <LogoutButton />
+                </div>
             </header>
 
             {/* Summary Card */}
-            <div className="bg-white rounded-2xl shadow-md p-5 border border-slate-100 mb-6 flex justify-between text-center">
+            <div className="bg-white rounded-2xl shadow-md p-5 border border-slate-100 mb-6 flex justify-between text-center sm:px-8">
                 <div>
                     <div className="text-2xl font-bold text-slate-900">{totalShifts}</div>
                     <div className="text-xs text-slate-500 uppercase tracking-wide font-medium">Total</div>
@@ -133,7 +190,7 @@ export default async function ManagerShiftsPage() {
             <div className="space-y-4">
                 {safeShifts.length === 0 ? (
                     <div className="bg-white rounded-2xl shadow-sm p-8 text-center text-slate-500">
-                        No shifts for today yet.
+                        No shifts found for {startDate} to {endDate}.
                     </div>
                 ) : (
                     safeShifts.map((shift) => {
@@ -142,53 +199,52 @@ export default async function ManagerShiftsPage() {
                         // Status Logic
                         let statusLabel = 'Completed'
                         let badgeClass = 'bg-slate-100 text-slate-600'
-                        let hoursDisplay = `${(shift.effective_hours ?? shift.raw_hours ?? 0).toFixed(2)}`
+                        let hoursDisplay = formatDuration(shift.effective_hours ?? shift.raw_hours ?? 0)
 
                         const isCompleted = !!shift.end_time
 
-                        if (!isCompleted) {
+                        // Use consistent badge logic
+                        if (shift.status === 'cancelled') {
+                            statusLabel = 'Cancelled'
+                            badgeClass = 'bg-red-100 text-red-700'
+                        } else if (!isCompleted) {
                             if (shift.status === 'on_break' || (shift.break_start && !shift.break_end)) {
                                 statusLabel = 'On Break'
                                 badgeClass = 'bg-amber-100 text-amber-700'
-                                hoursDisplay = '–' // Pending
+                                hoursDisplay = 'Pending'
                             } else {
                                 statusLabel = 'Active'
                                 badgeClass = 'bg-green-100 text-green-700'
-                                hoursDisplay = '–' // Pending
+                                hoursDisplay = 'Pending'
                             }
                         }
 
-                        // Determine end time display
                         const endTimeDisplay = shift.end_time ? formatTime(shift.end_time) : 'Active'
 
-                        // If on break, maybe show "On break"? The requirements say:
-                        // "Start / End / Status pill"
-                        // Keep End as "Active" if not completed, but pill is "On Break" if on break
-
                         return (
-                            <div key={shift.id} className="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
-                                <div className="flex justify-between items-start mb-2">
-                                    <span className="font-semibold text-slate-900">{packerName}</span>
-                                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${badgeClass}`}>
+                            <div key={shift.id} className="bg-white rounded-xl shadow-sm p-4 border border-slate-100 text-sm">
+                                <div className="flex justify-between items-start mb-3">
+                                    <span className="font-semibold text-slate-900 text-base">{packerName}</span>
+                                    <span className={`px-2 py-1 rounded-full font-medium text-xs ${badgeClass}`}>
                                         {statusLabel}
                                     </span>
                                 </div>
-                                <div className="flex justify-between text-sm text-slate-600">
+                                <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="w-16 text-slate-400 text-xs">Start</span>
-                                            <span>{formatTime(shift.start_time)}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <span className="w-16 text-slate-400 text-xs">End</span>
-                                            <span>{endTimeDisplay}</span>
+                                        <div className="flex flex-col text-slate-500">
+                                            <span className="text-xs uppercase tracking-wide mb-0.5">Time</span>
+                                            <span className="text-slate-900 font-medium">
+                                                {formatTime(shift.start_time)} – {endTimeDisplay}
+                                            </span>
                                         </div>
                                     </div>
-                                    <div className="text-right flex flex-col justify-end">
-                                        <span className="text-xs text-slate-400">Hours</span>
-                                        <span className={`font-medium ${!isCompleted ? 'text-slate-400 text-xs' : 'text-slate-900'}`}>
-                                            {isCompleted ? hoursDisplay : 'Pending'}
-                                        </span>
+                                    <div className="text-right">
+                                        <div className="flex flex-col text-slate-500">
+                                            <span className="text-xs uppercase tracking-wide mb-0.5">Hours</span>
+                                            <span className={`font-medium ${!isCompleted ? 'text-slate-400' : 'text-slate-900'}`}>
+                                                {hoursDisplay}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

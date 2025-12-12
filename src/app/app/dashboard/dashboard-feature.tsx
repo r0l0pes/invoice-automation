@@ -13,6 +13,7 @@ interface Shift {
     date: string | null
     status: string
     raw_hours: number | null
+    effective_hours: number | null
 }
 
 interface DashboardFeatureProps {
@@ -37,13 +38,6 @@ const formatDateLabel = (isoString?: string) => {
     return isToday ? `Today – ${dayStr}` : dayStr
 }
 
-// Helper to calculate hours between two times (or now)
-const calculateHours = (start: string, end: string | null) => {
-    const s = new Date(start).getTime()
-    const e = end ? new Date(end).getTime() : new Date().getTime()
-    const diffHours = (e - s) / (1000 * 60 * 60)
-    return diffHours
-}
 
 export default function DashboardFeature({ userProfile, userEmail, activeShift, history }: DashboardFeatureProps) {
     const [inState, inAction, inPending] = useActionState(clockIn, { success: false })
@@ -60,8 +54,8 @@ export default function DashboardFeature({ userProfile, userEmail, activeShift, 
     const sortedDays = Object.keys(groupedHistory).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
 
     return (
-        <div className="max-w-md mx-auto px-4 py-6 text-slate-900">
-            <header className="flex justify-between items-center mb-6">
+        <div className="flex min-h-[calc(100vh-80px)] flex-col items-center px-4 py-8 text-slate-900">
+            <header className="w-full max-w-xl flex justify-between items-center mb-6">
                 <div>
                     <h1 className="text-xl font-semibold text-slate-50">Dashboard</h1>
                     <p className="text-sm text-slate-400">
@@ -71,8 +65,8 @@ export default function DashboardFeature({ userProfile, userEmail, activeShift, 
             </header>
 
             {/* Active Shift Card */}
-            <div className="bg-white rounded-2xl shadow-md p-6 mb-6">
-                <h2 className="text-lg font-semibold mb-4 text-slate-900">Current Status</h2>
+            <div className="w-full max-w-xl bg-white rounded-2xl shadow-md p-6 mb-6">
+                <h2 className="text-lg sm:text-xl font-semibold mb-4 text-slate-900">Current Status</h2>
 
                 {activeShift ? (
                     <ActiveShiftControl activeShift={activeShift} />
@@ -107,9 +101,9 @@ export default function DashboardFeature({ userProfile, userEmail, activeShift, 
 
             {/* Recent History */}
             {history && history.length > 0 && (
-                <div className="bg-white rounded-3xl shadow-lg px-6 py-6">
+                <div className="w-full max-w-xl bg-white rounded-3xl shadow-lg px-6 py-6">
                     <div className="flex justify-between items-baseline mb-4">
-                        <h3 className="text-base font-semibold text-slate-900">Recent activity</h3>
+                        <h3 className="text-lg sm:text-xl font-semibold text-slate-900">Recent activity</h3>
                         <span className="text-xs text-slate-500">Last 10 shifts</span>
                     </div>
 
@@ -133,67 +127,67 @@ export default function DashboardFeature({ userProfile, userEmail, activeShift, 
     )
 }
 
+const formatDuration = (hours: number | null | undefined): string => {
+    if (hours === null || hours === undefined) return ''
+
+    if (hours < 1) {
+        const minutes = Math.round(hours * 60)
+        return `${minutes} min`
+    }
+
+    // >= 1 hour
+    const rounded = Math.round(hours * 100) / 100
+    return `${rounded}h`
+}
+
 function HistoryItem({ shift }: { shift: Shift }) {
-    const isActive = !shift.end_time
-    const isOnBreak = isActive && shift.break_start && !shift.break_end
+    const isCompleted = !!shift.end_time
+    const isActive = !isCompleted // "Active" in the broad sense (clocked in)
+    const isCancelled = shift.status === 'cancelled'
 
-    // Calculate raw duration for display if active
-    // For completed, use raw_hours
-    // We'll use a specific hook for active duration later or just render static for now + client hydration if needed.
-    // For simplicity in list:
-    // If completed: show raw_hours
-    // If active: show "Active" or calc diff
-
-    // We can use a simple client-side calc for active shifts in list
-    const [liveDuration, setLiveDuration] = useState<string>('')
-
-    useEffect(() => {
-        if (!isActive) return
-
-        const tick = () => {
-            const h = calculateHours(shift.start_time, null)
-            setLiveDuration(`${h.toFixed(2)}h`)
-        }
-        tick() // init
-        const id = setInterval(tick, 60000) // update every minute
-        return () => clearInterval(id)
-    }, [isActive, shift.start_time])
-
-    const durationDisplay = isActive
-        ? liveDuration
-        : `${(shift.raw_hours || 0).toFixed(2)}h`
-
-    // Badge logic
+    // Status Logic
     let statusLabel = 'Completed'
     let badgeClass = 'bg-slate-100 text-slate-600'
     let rowBg = 'bg-slate-50'
 
-    if (isActive) {
-        statusLabel = 'Active' // Even if on break, the shift is active in terms of "not completed"
-        badgeClass = 'bg-emerald-100 text-emerald-700'
-        rowBg = 'bg-emerald-50'
-
-        if (isOnBreak) {
-            statusLabel = 'On Break' // Optional: Design spec said "Active" row shows green pill. 
-            // Design spec: "Active row: label “Active”, green pill."
-            // But Part 1 also says "Status pill on the right: Active row: label “Active”, green pill."
-            // It doesn't explicitly talk about break status in RECENT ACTIVITY list, only in main timer.
-            // But Part 4 says Manager view shows 'On break'.
-            // Let's stick to "Active" for the consolidated list to keep it simple, or mirror the main status.
-            // Let's keep "Active" green for now as per "Active row: label “Active”, green pill" instruction.
+    if (isCancelled) {
+        statusLabel = 'Cancelled'
+        badgeClass = 'bg-red-100 text-red-700'
+    } else if (isActive) {
+        if (shift.status === 'on_break') {
+            statusLabel = 'On Break'
+            badgeClass = 'bg-amber-100 text-amber-700'
+        } else {
+            statusLabel = 'Active'
+            badgeClass = 'bg-green-100 text-green-700'
         }
+        rowBg = 'bg-emerald-50' // Highlight active rows slightly
     }
+
+    // Line 1: Times
+    const timeDisplay = isCompleted
+        ? `${formatTime(shift.start_time)} — ${formatTime(shift.end_time!)}`
+        : `${formatTime(shift.start_time)} — Active`
+
+    // Line 2: Hours details
+    // "Worked: 15 min" or "Worked: 1.25h"
+    const workedDisplay = `Worked: ${formatDuration(shift.effective_hours ?? shift.raw_hours ?? 0)}`
+
+    // Only show break info if there is recorded break duration > 0
+    const breakMins = shift.break_duration_minutes || 0
+    const breakHours = breakMins / 60
+    const breakDisplay = breakMins > 0
+        ? ` · Break: ${formatDuration(breakHours)}`
+        : ''
 
     return (
         <li className={`flex items-center justify-between rounded-2xl px-4 py-3 ${isActive ? rowBg : 'bg-slate-50'}`}>
             <div>
                 <div className="text-sm font-medium text-slate-900">
-                    {formatTime(shift.start_time)} – {shift.end_time ? formatTime(shift.end_time) : 'Active'}
+                    {timeDisplay}
                 </div>
-                <div className="mt-1 text-[11px] text-slate-400">
-                    {/* Duration could be complex: HH:MM:SS · 0.14h */}
-                    {/* For now let's show formatted hours */}
-                    {durationDisplay}
+                <div className="mt-1 text-xs text-slate-500">
+                    {workedDisplay}{breakDisplay}
                 </div>
             </div>
             <div>
@@ -206,7 +200,7 @@ function HistoryItem({ shift }: { shift: Shift }) {
 }
 
 function ActiveShiftControl({ activeShift }: { activeShift: Shift }) {
-    const isOnBreak = activeShift.status === 'on_break' || (!!activeShift.break_start && !activeShift.break_end)
+    const isOnBreak = activeShift.status === 'on_break'
 
     // Actions
     const clockOutWithId = clockOut.bind(null, activeShift.id)
@@ -218,7 +212,9 @@ function ActiveShiftControl({ activeShift }: { activeShift: Shift }) {
     // Timer logic
     // If on break, we show break timer (from break_start)
     // If active, we show shift timer (from start_time)
-    const startTimeProp = isOnBreak ? activeShift.break_start! : activeShift.start_time
+    // NOTE: If status is 'on_break', break_start MUST be set by server action. 
+    // Fallback? If null, maybe use now? But that would reset timer. Rely on server.
+    const startTimeProp = isOnBreak && activeShift.break_start ? activeShift.break_start : activeShift.start_time
 
     // Timer hook
     const [elapsed, setElapsed] = useState<string>('00:00:00')
@@ -258,7 +254,7 @@ function ActiveShiftControl({ activeShift }: { activeShift: Shift }) {
                     </span>
                 </div>
 
-                <p className="text-4xl font-bold mb-1 text-slate-900 tabular-nums tracking-tight">
+                <p className="text-4xl sm:text-5xl font-bold mb-1 text-slate-900 tabular-nums tracking-tight">
                     {elapsed}
                 </p>
 
@@ -284,9 +280,7 @@ function ActiveShiftControl({ activeShift }: { activeShift: Shift }) {
                         </button>
                     </form>
 
-                    {/* Optional: Allow ending shift directly from break? 
-                        Spec said: Secondary (optional small button): End shift 
-                    */}
+                    {/* Optional: End shift directly from break? Only if requested/supported. Keeping plain End Shift button as secondary */}
                     <form action={outAction}>
                         <button
                             type="submit"
@@ -310,7 +304,7 @@ function ActiveShiftControl({ activeShift }: { activeShift: Shift }) {
                 </span>
             </div>
 
-            <p className="text-4xl font-bold mb-1 text-slate-900 tabular-nums tracking-tight">
+            <p className="text-4xl sm:text-5xl font-bold mb-1 text-slate-900 tabular-nums tracking-tight">
                 {elapsed}
             </p>
 
