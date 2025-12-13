@@ -2,6 +2,7 @@ import LogoutButton from '@/components/LogoutButton'
 import { createClient } from '@/utils/supabase/server'
 import { getAdminSupabaseClient } from '@/utils/supabaseAdmin'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 
 interface Shift {
     id: number
@@ -222,32 +223,38 @@ export default async function ManagerShiftsPage({ searchParams }: PageProps) {
                         const endTimeDisplay = shift.end_time ? formatTime(shift.end_time) : 'Active'
 
                         return (
-                            <div key={shift.id} className="bg-white rounded-xl shadow-sm p-4 border border-slate-100 text-sm">
-                                <div className="flex justify-between items-start mb-3">
-                                    <span className="font-semibold text-slate-900 text-base">{packerName}</span>
-                                    <span className={`px-2 py-1 rounded-full font-medium text-xs ${badgeClass}`}>
-                                        {statusLabel}
-                                    </span>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <div className="flex flex-col text-slate-500">
-                                            <span className="text-xs uppercase tracking-wide mb-0.5">Time</span>
-                                            <span className="text-slate-900 font-medium">
-                                                {formatTime(shift.start_time)} – {endTimeDisplay}
-                                            </span>
+                            <Link
+                                key={shift.id}
+                                href={`/manager/shifts/${shift.id}`}
+                                className="block transition-transform active:scale-[0.99]"
+                            >
+                                <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100 text-sm hover:border-blue-300 hover:shadow-md transition-all cursor-pointer">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <span className="font-semibold text-slate-900 text-base">{packerName}</span>
+                                        <span className={`px-2 py-1 rounded-full font-medium text-xs ${badgeClass}`}>
+                                            {statusLabel}
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <div className="flex flex-col text-slate-500">
+                                                <span className="text-xs uppercase tracking-wide mb-0.5">Time</span>
+                                                <span className="text-slate-900 font-medium">
+                                                    {formatTime(shift.start_time)} – {endTimeDisplay}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="flex flex-col text-slate-500">
+                                                <span className="text-xs uppercase tracking-wide mb-0.5">Hours</span>
+                                                <span className={`font-medium ${!isCompleted ? 'text-slate-400' : 'text-slate-900'}`}>
+                                                    {hoursDisplay}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        <div className="flex flex-col text-slate-500">
-                                            <span className="text-xs uppercase tracking-wide mb-0.5">Hours</span>
-                                            <span className={`font-medium ${!isCompleted ? 'text-slate-400' : 'text-slate-900'}`}>
-                                                {hoursDisplay}
-                                            </span>
-                                        </div>
-                                    </div>
                                 </div>
-                            </div>
+                            </Link>
                         )
                     })
                 )}
