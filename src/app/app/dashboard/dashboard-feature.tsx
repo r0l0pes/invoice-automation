@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { clockIn, clockOut, startBreak, endBreak } from './actions'
 
 interface Shift {
@@ -25,7 +26,10 @@ interface DashboardFeatureProps {
 
 const formatTime = (isoString?: string) => {
     if (!isoString) return ''
-    return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    const d = new Date(isoString)
+    const h = d.getHours().toString().padStart(2, '0')
+    const m = d.getMinutes().toString().padStart(2, '0')
+    return `${h}:${m}`
 }
 
 const formatDateLabel = (isoString?: string) => {
@@ -104,7 +108,9 @@ export default function DashboardFeature({ userProfile, userEmail, activeShift, 
                 <div className="w-full max-w-xl bg-white rounded-3xl shadow-lg px-6 py-6">
                     <div className="flex justify-between items-baseline mb-4">
                         <h3 className="text-lg sm:text-xl font-semibold text-slate-900">Recent activity</h3>
-                        <span className="text-xs text-slate-500">Last 10 shifts</span>
+                        <Link href="/app/shifts" className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors">
+                            View Full History
+                        </Link>
                     </div>
 
                     <div className="space-y-6">
@@ -183,7 +189,7 @@ function HistoryItem({ shift }: { shift: Shift }) {
     return (
         <li className={`flex items-center justify-between rounded-2xl px-4 py-3 ${isActive ? rowBg : 'bg-slate-50'}`}>
             <div>
-                <div className="text-sm font-medium text-slate-900">
+                <div className="text-sm font-medium text-slate-900" suppressHydrationWarning>
                     {timeDisplay}
                 </div>
                 <div className="mt-1 text-xs text-slate-500">
@@ -259,8 +265,8 @@ function ActiveShiftControl({ activeShift }: { activeShift: Shift }) {
                 </p>
 
                 <div className="text-slate-500 text-sm mb-6 flex flex-col gap-1">
-                    <span>On break since {formatTime(activeShift.break_start!)}</span>
-                    <span className="text-xs">Shift started at {formatTime(activeShift.start_time)}</span>
+                    <span suppressHydrationWarning>On break since {formatTime(activeShift.break_start!)}</span>
+                    <span className="text-xs" suppressHydrationWarning>Shift started at {formatTime(activeShift.start_time)}</span>
                 </div>
 
                 {error && (
@@ -308,7 +314,7 @@ function ActiveShiftControl({ activeShift }: { activeShift: Shift }) {
                 {elapsed}
             </p>
 
-            <p className="text-slate-500 text-sm mb-6">
+            <p className="text-slate-500 text-sm mb-6" suppressHydrationWarning>
                 Started at {formatTime(activeShift.start_time)}
             </p>
 
