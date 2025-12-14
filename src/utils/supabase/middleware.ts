@@ -48,6 +48,8 @@ export async function updateSession(request: NextRequest) {
             return NextResponse.redirect(new URL('/login', request.url))
         }
     }
+    // Remove role isolation block. updateSession only refreshes session and protects auth.
+
 
     return response
 }

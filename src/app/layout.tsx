@@ -25,10 +25,27 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#0B1120] text-slate-50`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50 text-slate-900`}
       >
+        {process.env.NODE_ENV !== 'production' && <DebugBannerWrapper />}
         {children}
       </body>
     </html>
   );
+}
+
+import { createClient } from "@/utils/supabase/server";
+import DebugBanner from "@/components/DebugBanner";
+
+async function DebugBannerWrapper() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  let role = 'guest';
+  if (user) {
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    role = profile?.role || 'unknown';
+  }
+
+  return <DebugBanner role={role} userEmail={user?.email} />
 }

@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { clockIn, clockOut, startBreak, endBreak } from './actions'
 
 interface Shift {
@@ -34,17 +35,51 @@ const formatTime = (isoString?: string) => {
 
 const formatDateLabel = (isoString?: string) => {
     if (!isoString) return ''
-    const d = new Date(isoString)
-    const today = new Date()
-    const isToday = d.toDateString() === today.toDateString()
+    // Deterministic parsing for YYYY-MM-DD
+    // isoString can be "2023-12-14" or "2023-12-14T..."
+    const datePart = isoString.split('T')[0]
+    const [y, m, d] = datePart.split('-').map(Number)
 
-    const dayStr = d.toLocaleDateString([], { day: 'numeric', month: 'short' })
+    // Create UTC date to avoid timezone shifts
+    const date = new Date(Date.UTC(y, m - 1, d))
+
+    // Compare with "Today" (also in UTC terms for consistency? Or just server "today"?)
+    // Actually, "Today" is relative to the USER's browser time usually. 
+    // BUT hydration mismatch happens because server (UTC) != Client (Local).
+    // User requested: "Option 1: ... Compute Today based on UTC date parts"
+
+    const now = new Date()
+    const todayYear = now.getUTCFullYear()
+    const todayMonth = now.getUTCMonth()
+    const todayDate = now.getUTCDate()
+
+    const isToday = y === todayYear && (m - 1) === todayMonth && d === todayDate
+
+    const nf = new Intl.DateTimeFormat('en-GB', {
+        weekday: undefined,
+        year: undefined,
+        month: 'short',
+        day: 'numeric',
+        timeZone: 'UTC'
+    })
+    const dayStr = nf.format(date)
+
     return isToday ? `Today – ${dayStr}` : dayStr
 }
 
 
 export default function DashboardFeature({ userProfile, userEmail, activeShift, history }: DashboardFeatureProps) {
-    const [inState, inAction, inPending] = useActionState(clockIn, { success: false })
+    const router = useRouter()
+
+    // Actions - start with ok: false default
+    const [inState, inAction, inPending] = useActionState(clockIn, { ok: false })
+
+    // Listen for success to refresh client
+    useEffect(() => {
+        if (inState.ok) {
+            router.refresh()
+        }
+    }, [inState, router])
 
     // Group history by day
     const groupedHistory = history.reduce((acc, shift) => {
@@ -206,14 +241,22 @@ function HistoryItem({ shift }: { shift: Shift }) {
 }
 
 function ActiveShiftControl({ activeShift }: { activeShift: Shift }) {
+    const router = useRouter()
     const isOnBreak = activeShift.status === 'on_break'
 
     // Actions
     const clockOutWithId = clockOut.bind(null, activeShift.id)
-    const [outState, outAction, outPending] = useActionState(clockOutWithId, { success: false })
+    const [outState, outAction, outPending] = useActionState(clockOutWithId, { ok: false })
 
-    const [breakStartState, breakStartAction, breakStartPending] = useActionState(startBreak, { success: false })
-    const [breakEndState, breakEndAction, breakEndPending] = useActionState(endBreak, { success: false })
+    const [breakStartState, breakStartAction, breakStartPending] = useActionState(startBreak, { ok: false })
+    const [breakEndState, breakEndAction, breakEndPending] = useActionState(endBreak, { ok: false })
+
+    // Listeners for success
+    useEffect(() => {
+        if (outState.ok || breakStartState.ok || breakEndState.ok) {
+            router.refresh()
+        }
+    }, [outState.ok, breakStartState.ok, breakEndState.ok, router])
 
     // Timer logic
     // If on break, we show break timer (from break_start)

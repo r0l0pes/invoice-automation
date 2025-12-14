@@ -71,7 +71,7 @@ export async function login(prevState: FormState | null, formData: FormData) {
 
     // Strict redirect logic
     if (profile.role === 'manager') {
-        redirect('/manager/shifts')
+        redirect('/manager/dashboard')
     } else {
         redirect('/app/dashboard')
     }

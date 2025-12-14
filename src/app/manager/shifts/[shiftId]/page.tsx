@@ -1,10 +1,10 @@
 import { createClient } from '@/utils/supabase/server'
 import { getAdminSupabaseClient } from '@/utils/supabaseAdmin'
 import { redirect, notFound } from 'next/navigation'
-import Link from 'next/link'
-import { ArrowLeft, Clock, Package, MapPin, Coffee } from 'lucide-react'
+import { Clock, Package, MapPin, Coffee } from 'lucide-react'
 import DeleteShiftButton from './DeleteShiftButton'
 import EditShiftModal from './EditShiftModal'
+import BackButton from '@/components/BackButton'
 
 // Types
 interface ShiftDetail {
@@ -26,8 +26,23 @@ interface ShiftDetail {
 
 
 
-export default async function ManagerShiftDetailPage({ params }: { params: Promise<{ shiftId: string }> }) {
+export default async function ManagerShiftDetailPage({ params, searchParams }: { params: Promise<{ shiftId: string }>, searchParams?: Promise<{ from?: string, start?: string, end?: string }> }) {
     const { shiftId: shiftIdStr } = await params
+    const sp = await searchParams
+
+    // Back Link Logic
+    let backLink = '/manager/dashboard' // Default fallback
+    if (sp?.from && sp.from.startsWith('/manager/')) {
+        backLink = sp.from
+        // preserve date params
+        if (sp.start || sp.end) {
+            const qs = new URLSearchParams()
+            if (sp.start) qs.set('start', sp.start)
+            if (sp.end) qs.set('end', sp.end)
+            backLink += `?${qs.toString()}`
+        }
+    }
+
     const shiftId = parseInt(shiftIdStr)
     if (isNaN(shiftId)) return notFound()
 
@@ -37,15 +52,7 @@ export default async function ManagerShiftDetailPage({ params }: { params: Promi
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) redirect('/login')
 
-    const { data: managerProfile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
 
-    if (managerProfile?.role !== 'manager') {
-        redirect('/app/dashboard')
-    }
 
     // 2. Fetch Data (Admin Client to match list strategy)
     const adminSupabase = getAdminSupabaseClient()
@@ -178,12 +185,7 @@ export default async function ManagerShiftDetailPage({ params }: { params: Promi
             {/* Header / Nav */}
             <div className="bg-white px-4 py-4 shadow-sm border-b border-slate-200">
                 <div className="max-w-xl mx-auto flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <Link href="/manager/shifts" className="p-2 -ml-2 text-slate-600 hover:bg-slate-50 rounded-full transition-colors">
-                            <ArrowLeft size={20} />
-                        </Link>
-                        <span className="font-semibold text-slate-700">Back</span>
-                    </div>
+                    <BackButton fallbackRoute={backLink} />
                     <EditShiftModal
                         shiftId={shiftId}
                         availableFields={Object.keys(shift)}

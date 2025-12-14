@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server'
 import { getAdminSupabaseClient } from '@/utils/supabaseAdmin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
 
 interface Shift {
     id: number
@@ -38,15 +39,7 @@ export default async function ManagerShiftsPage({ searchParams }: PageProps) {
     }
 
     // Verify role is manager
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
 
-    if (!profile || profile.role !== 'manager') {
-        redirect('/app/dashboard')
-    }
 
     // 2. Fetch Data (Admin Client)
     const adminSupabase = getAdminSupabaseClient()
@@ -140,6 +133,11 @@ export default async function ManagerShiftsPage({ searchParams }: PageProps) {
         <div className="max-w-xl mx-auto px-4 py-8 text-slate-900">
             <header className="flex flex-wrap justify-between items-center mb-6 gap-2">
                 <div>
+                    <div className="flex items-center gap-2 mb-1">
+                        <Link href="/manager/dashboard" className="text-sm text-slate-400 hover:text-slate-200 flex items-center gap-1 transition-colors">
+                            <ArrowLeft size={16} /> Back to dashboard
+                        </Link>
+                    </div>
                     <h1 className="text-xl font-semibold text-slate-50">Manager shifts</h1>
                     <div className="flex items-center gap-2 mt-1">
                         <span className="text-sm text-slate-400">Overview from</span>
@@ -225,7 +223,7 @@ export default async function ManagerShiftsPage({ searchParams }: PageProps) {
                         return (
                             <Link
                                 key={shift.id}
-                                href={`/manager/shifts/${shift.id}`}
+                                href={`/manager/shifts/${shift.id}?from=/manager/shifts&start=${startDate}&end=${endDate}`}
                                 className="block transition-transform active:scale-[0.99]"
                             >
                                 <div className="bg-white rounded-xl shadow-sm p-4 border border-slate-100 text-sm hover:border-blue-300 hover:shadow-md transition-all cursor-pointer">

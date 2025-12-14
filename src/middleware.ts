@@ -102,44 +102,50 @@ export async function middleware(request: NextRequest) {
         }
 
         // If user exists, check role
-        try {
-            const { data: profile, error } = await supabase
-                .from('profiles')
-                .select('role')
-                .eq('id', user.id)
-                .single()
 
-            if (error) {
-                // Fail open if DB error
-                console.error('Middleware role fetch error:', error)
-                return response
+        const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single()
+
+        if (error || !profile) {
+            // Fail SAFE: If we can't determine role, do not allow access to protected routes.
+            console.error('Middleware role fetch error:', error)
+            const url = new URL('/login', request.url)
+            // url.searchParams.set('error', 'role_verification_failed') 
+            // Better not to expose error details in URL, just redirect to login to retry
+            const redirectRes = NextResponse.redirect(url)
+            response.cookies.getAll().forEach((c) => redirectRes.cookies.set(c))
+            return redirectRes
+        }
+
+        const role = profile.role
+
+        if (process.env.NODE_ENV !== 'production') {
+            console.log(`[Middleware] Path: ${path}, User: ${user.email}, Role: ${role}`)
+        }
+
+        if (role === 'manager') {
+            // Managers cannot access /app/* -> Redirect to /manager/dashboard
+            // We redirect to dashboard specifically to ensure landing on the right page
+            if (isAppRoute) {
+                if (process.env.NODE_ENV !== 'production') console.log('[Middleware] Redirecting Manager to /manager/dashboard')
+                const url = new URL('/manager/dashboard', request.url)
+                const redirectRes = NextResponse.redirect(url)
+                response.cookies.getAll().forEach((c) => redirectRes.cookies.set(c))
+                return redirectRes
             }
-
-            const role = profile?.role
-
-            if (role === 'manager') {
-                // Managers cannot access /app/* -> Redirect to /manager/shifts
-                if (isAppRoute) {
-                    const url = new URL('/manager/shifts', request.url)
-                    const redirectRes = NextResponse.redirect(url)
-                    response.cookies.getAll().forEach((c) => redirectRes.cookies.set(c))
-                    return redirectRes
-                }
-            } else if (role === 'packer') {
-                // Packers cannot access /manager/* -> Redirect to /app/dashboard
-                if (isManagerRoute) {
-                    const url = new URL('/app/dashboard', request.url)
-                    const redirectRes = NextResponse.redirect(url)
-                    response.cookies.getAll().forEach((c) => redirectRes.cookies.set(c))
-                    return redirectRes
-                }
+        } else {
+            // Treat anyone NOT a manager as a packer (or generic user)
+            // Packers cannot access /manager/* -> Redirect to /app/dashboard
+            if (isManagerRoute) {
+                if (process.env.NODE_ENV !== 'production') console.log('[Middleware] Redirecting Packer/Guest to /app/dashboard')
+                const url = new URL('/app/dashboard', request.url)
+                const redirectRes = NextResponse.redirect(url)
+                response.cookies.getAll().forEach((c) => redirectRes.cookies.set(c))
+                return redirectRes
             }
-            // Role 'user' or unknown -> Allow access (fail open/no loop)
-
-        } catch (err) {
-            // Fail open
-            console.error('Middleware unexpected error:', err)
-            return response
         }
     }
 
